@@ -1,0 +1,3 @@
+rm -rf bin pkg; GOPATH=`pwd` go install ./...
+
+#GOPATH=`pwd` godoc ipp
