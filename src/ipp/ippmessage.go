@@ -1,42 +1,55 @@
 package ipp
 
 import (
-	"bytes"
 	"encoding/binary"
-	"log"
 )
-
-func populateByteArray(v int64, i interface{}, s int) {
-	buf := new(bytes.Buffer)
-	err := binary.Write(buf, binary.BigEndian, v)
-	if err != nil {
-		log.Fatal("binary.Write failed:", err)
-	}
-	q := buf.Bytes()[buf.Len()-s:]
-	for n := 0; n < s; n++ {
-		i.([s]byte)[n] = q[n]
-	}
-}
 
 type IppAdditionalValue struct {
 	valueTag    byte
-	nameLength  [2]byte
-	valueLength [2]byte
+	nameLength  int16
+	valueLength int16
 	value       string
 }
 
-func NewIppAdditionalValue() *IppAdditionalValue {
+func NewIppAdditionalValue(tag byte) *IppAdditionalValue {
 	var v IppAdditionalValue
-	populateByteArray(int64(0x0000), v.nameLength, 2)
+	v.valueTag = tag
+	v.nameLength = 0x0000
 	return &v
+}
+
+func (a *IppAdditionalValue) SetValue(n string) {
+	a.value = n
+	a.valueLength = int16(len(n))
 }
 
 type IppAttributeWithOneValue struct {
 	valueTag    byte
-	nameLength  [2]byte
+	nameLength  int16
 	name        string
-	valueLength [2]byte
-	value       string
+	valueLength int16
+	value       []byte
+}
+
+func NewIppAttributeWithOneValue(tag byte) *IppAttributeWithOneValue {
+	var o IppAttributeWithOneValue
+	o.valueTag = tag
+	return &o
+}
+
+func (a *IppAttributeWithOneValue) SetName(n string) {
+	a.name = n
+	a.nameLength = int16(len(n))
+}
+
+func (a *IppAttributeWithOneValue) SetValueString(n string) {
+	a.value = []byte(n)
+	a.valueLength = int16(len(a.value))
+}
+
+func (a *IppAttributeWithOneValue) SetValue(n []byte) {
+  a.value = n
+	a.valueLength = int16(len(a.value))
 }
 
 type IppAttribute struct {
@@ -49,10 +62,21 @@ type IppAttributeGroup struct {
 	attribute              []IppAttribute
 }
 
+func NewIppAttributeGroup(tag byte) *IppAttributeGroup {
+  g := IppAttributeGroup{tag, nil}
+  return &g
+}
+
+func (g *IppAttributeGroup) AddAttribute(oneval IppAttributeWithOneValue) *IppAttribute {
+	a := IppAttribute{oneval, nil}
+	g.attribute = append(g.attribute, a)
+	return &a
+}
+
 type IppMessage struct {
-	VersionNumber         [2]byte
-	OperationIdStatusCode [2]byte
-	RequestId             [4]byte
+	VersionNumber         int16
+	OperationIdStatusCode int16
+	RequestId             int32
 	AttributeGroup        []IppAttributeGroup
 	EndAttributeTag       byte
 	Data                  []byte
@@ -60,39 +84,25 @@ type IppMessage struct {
 
 func NewIppMessage() *IppMessage {
 	var m IppMessage
-	m.EndAttributeTag = 0x03
+	m.EndAttributeTag = IPP_TAG_END
 	m.setVersion()
 	return &m
 }
 
 func (m *IppMessage) setVersion() {
-	m.VersionNumber[0] = IPP_MAJOR_VERSION
-	m.VersionNumber[1] = IPP_MINOR_VERSION
+	v := []byte{IPP_MAJOR_VERSION, IPP_MINOR_VERSION}
+	n, _ := binary.Varint(v)
+	m.VersionNumber = int16(n)
 }
 
 func (m *IppMessage) SetOperationIdStatusCode(d int16) {
-	//buf := new(bytes.Buffer)
-	pi := int64(d)
-	//err := binary.Write(buf, binary.BigEndian, pi)
-	//if err != nil {
-	//	log.Fatal("binary.Write failed:", err)
-	//}
-	//q := buf.Bytes()[buf.Len()-2:]
-	//m.OperationIdStatusCode[0] = q[0]
-	//m.OperationIdStatusCode[1] = q[1]
-	populateByteArray(pi, m.OperationIdStatusCode, 2)
+	m.OperationIdStatusCode = d
 }
 
 func (m *IppMessage) SetRequestId(d int32) {
-	buf := new(bytes.Buffer)
-	pi := int64(d)
-	err := binary.Write(buf, binary.BigEndian, pi)
-	if err != nil {
-		log.Fatal("binary.Write failed:", err)
-	}
-	q := buf.Bytes()[buf.Len()-4:]
-	m.RequestId[0] = q[0]
-	m.RequestId[1] = q[1]
-	m.RequestId[2] = q[2]
-	m.RequestId[3] = q[3]
+	m.RequestId = d
+}
+
+func (m *IppMessage) AddAttributeGroup(ag IppAttributeGroup) {
+	m.AttributeGroup = []IppAttributeGroup{ag}
 }
